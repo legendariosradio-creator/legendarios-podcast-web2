@@ -1,235 +1,94 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-
-const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('PEGA_AQUI') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('PEGA_AQUI');
-const sb = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-const $ = s => document.querySelector(s);
-let session = null, settings = {}, playlists = [], assets = [];
-
-const defaults = {
-  brand_name: 'LEGENDARIOS',
-  brand_subtitle: 'Playlist · JoseLuis',
-  logo_url: 'assets/logo.png',
-  hero_badge: 'Nueva Playlist Diaria Disponible',
-  hero_title: 'LA MÚSICA<br><em>NO MUERE</em>',
-  hero_text: 'Un espacio conducido por JoseLuis.',
-  platform_title: 'DISPONIBLE EN TODAS TUS PLATAFORMAS',
-  platform_text: 'Sigue los episodios diarios',
-  playlist_title: 'SELECCIÓN MUSICAL',
-  playlist_text: 'Explora las listas',
-  contact_title: 'PIDE TU TEMA',
-  contact_text: 'Envía tu petición',
-  youtube_url: 'https://www.youtube.com',
-  ivoox_url: 'https://www.ivoox.com',
-  facebook_url: 'https://www.facebook.com',
-  accent_color: '#eab308',
-  background_color: '#080808'
-};
-
-function message(t, err = false) {
-  const el = $('#status');
-  if (!el) return;
-  el.textContent = t;
-  el.classList.remove('hidden', 'error');
-  if (err) el.classList.add('error');
-}
-
-function clearMessage() {
-  const el = $('#status');
-  if (el) el.classList.add('hidden');
-}
-
-function esc(s = '') {
-  return String(s).replace(/[&<>"']/g, function(c) {
-    return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c];
-  });
-}
-
-function setForm(form, obj) {
-  for (const el of form.elements) {
-    if (el.name && obj[el.name] !== undefined && el.type !== 'file') {
-      el.value = obj[el.name];
-    }
-  }
-}
-
-async function requireAdmin() {
-  if (!sb) {
-    $('#setupWarning')?.classList.remove('hidden');
-    return false;
-  }
-  const { data: { session: s } } = await sb.auth.getSession();
-  session = s;
-  if (!s) {
-    showLoggedOut();
-    return false;
-  }
-  const { data: allowed, error } = await sb.rpc('is_admin');
-  if (error || !allowed) {
-    await sb.auth.signOut();
-    showLoggedOut();
-    message('Esta cuenta no está autorizada como administradora.', true);
-    return false;
-  }
-  showLoggedIn();
-  await refresh();
-  return true;
-}
-
-function showLoggedOut() {
-  $('#loginPanel')?.classList.remove('hidden');
-  $('#dashboard')?.classList.add('hidden');
-  $('#logoutBtn')?.classList.add('hidden');
-}
-
-function showLoggedIn() {
-  $('#loginPanel')?.classList.add('hidden');
-  $('#dashboard')?.classList.remove('hidden');
-  $('#logoutBtn')?.classList.remove('hidden');
-}
-
-async function refresh() {
-  clearMessage();
-  const [{ data: sd }, { data: pd }, { data: ad }] = await Promise.all([
-    sb.from('site_settings').select('*'),
-    sb.from('playlists').select('*').order('sort_order'),
-    sb.storage.from('media').list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
-  ]);
-  settings = { ...defaults };
-  for (const x of sd || []) settings[x.key] = x.draft_value ?? x.value;
-  playlists = pd || [];
-  assets = ad || [];
-  
-  const settingsForm = $('#settingsForm');
-  if (settingsForm) setForm(settingsForm, settings);
-  
-  renderPlaylistsAdmin();
-}
-
-// Renderizar la gestión de las playlists directamente en #managePlaylists
-function renderPlaylistsAdmin() {
-  const container = $('#managePlaylists') \vert{}\vert{} $('#playlistsAdminContainer');
-  if (!container) return;
-
-  container.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <h3 style="margin:0; color:#eab308;">Listado de Playlists (${playlists.length} configuradas)</h3>
-      <button id="addNewPlaylistBtn" class="btn gold" type="button" style="padding:6px 12px; font-size:13px;">+ Añadir Playlist</button>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Administración · Legendarios Playlist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="admin-page">
+  <nav class="nav">
+    <a class="brand" href="/"><img src="assets/logo.png" alt="Logo"><span><b>LEGENDARIOS</b><small>Administración privada</small></span></a>
+    <a class="btn outline small" href="/">Ver web pública ↗</a>
+  </nav>
+  <main class="admin">
+    <div class="admin-top">
+      <div>
+        <h1>Panel de administración</h1>
+        <p class="muted">Gestiona el contenido que verá el público.</p>
+      </div>
+      <button id="logoutBtn" class="btn outline hidden">Cerrar sesión</button>
     </div>
-    <div id="playlistsListRows" style="display:flex; flex-direction:column; gap:15px;"></div>
-  `;
+    
+    <div id="setupWarning" class="status error hidden">Antes de usar el panel, configura la URL y la clave pública de Supabase en <code>config.js</code> y ejecuta el SQL de <code>supabase/schema.sql</code>.</div>
+    <div id="status" class="status hidden" role="status"></div>
 
-  const rowsContainer = $('#playlistsListRows');
-  
-  playlists.forEach((p, index) => {
-    const item = document.createElement('div');
-    item.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(234,179,8,0.2); padding: 15px; border-radius: 8px;";
-    item.innerHTML = `
-      <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-bottom: 10px;">
-        <input type="text" data-id="${p.id}" name="title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="category" value="${esc(p.category || '')}" placeholder="Categoría" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-      </div>
-      <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
-        <input type="text" data-id="${p.id}" name="image_url" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="link_url" value="${esc(p.link_url || '')}" placeholder="Enlace (YouTube / iVoox)" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="number" data-id="${p.id}" name="sort_order" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-      </div>
-      <textarea data-id="${p.id}" name="description" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical; height:60px;">${esc(p.description || '')}</textarea>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <label style="color:#fff; font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;">
-          <input type="checkbox" data-id="${p.id}" name="published" ${p.published !== false ? 'checked' : ''}> Publicada en la web
-        </label>
-        <div style="display:flex; gap:10px;">
-          <button class="save-playlist-btn btn gold" data-id="${p.id}" style="padding:6px 12px; font-size:12px; cursor:pointer;" type="button">Guardar</button>
-          <button class="delete-playlist-btn" data-id="${p.id}" style="background:#ef4444; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;" type="button">Eliminar</button>
-        </div>
-      </div>
-    `;
-    rowsContainer.appendChild(item);
-  });
+    <section id="loginPanel" class="admin-panel">
+      <h2>Acceso privado</h2>
+      <p class="muted">Entra con la cuenta de administración autorizada.</p>
+      <form id="loginForm" class="admin-form">
+        <label>Correo electrónico<input type="email" id="email" autocomplete="username" required></label>
+        <label>Contraseña<input type="password" id="password" autocomplete="current-password" required></label>
+        <button class="btn gold" type="submit">Entrar al panel</button>
+      </form>
+    </section>
 
-  // Botón para añadir nueva playlist
-  $('#addNewPlaylistBtn')?.addEventListener('click', async () => {
-    const newOrder = playlists.length + 1;
-    const { error } = await sb.from('playlists').insert([{
-      title: 'Nueva Playlist',
-      category: 'Categoría',
-      image_url: 'assets/logo.png',
-      link_url: 'https://www.youtube.com',
-      description: 'Descripción breve de la playlist',
-      published: true,
-      sort_order: newOrder
-    }]);
-    if (error) {
-      message('Error al crear la playlist: ' + error.message, true);
-    } else {
-      message('¡Playlist creada con éxito!');
-      await refresh();
-    }
-  });
+    <div id="dashboard" class="hidden">
+      <section class="admin-panel">
+        <h2>Contenido general</h2>
+        <p class="muted">Los cambios de texto y diseño se guardan como borrador. Pulsa «Publicar cambios» para que se vean en la web.</p>
+        <form id="settingsForm" class="admin-form">
+          <div class="fields">
+            <label>Nombre de marca<input name="brand_name"></label>
+            <label>Subtítulo<input name="brand_subtitle"></label>
+            <label class="full">Aviso principal<input name="hero_badge"></label>
+            <label>Título principal (admite HTML sencillo)<input name="hero_title"></label>
+            <label>Color de acento<input name="accent_color" type="color"></label>
+            <label class="full">Texto principal<textarea name="hero_text" rows="3"></textarea></label>
+            <label>Título plataformas<input name="platform_title"></label>
+            <label>Texto plataformas<input name="platform_text"></label>
+            <label>Título playlists<input name="playlist_title"></label>
+            <label>Texto playlists<input name="playlist_text"></label>
+            <label>Título contacto<input name="contact_title"></label>
+            <label>Texto contacto<input name="contact_text"></label>
+            <label>Enlace YouTube<input name="youtube_url" type="url"></label>
+            <label>Enlace iVoox<input name="ivoox_url" type="url"></label>
+            <label>Enlace Facebook<input name="facebook_url" type="url"></label>
+            <label>Correo para peticiones<input name="request_email" type="email"></label>
+            <label class="full">Logo / imagen de marca<input type="file" id="logoFile" accept="image/*"><small class="muted">Si eliges un archivo, se subirá al almacenamiento privado de medios de la web.</small></label>
+          </div>
+          <div class="admin-actions">
+            <button class="btn outline" type="submit">Guardar borrador</button>
+            <button class="btn gold" id="publishSettings" type="button">Publicar cambios</button>
+            <a class="btn outline" href="/" target="_blank">Previsualizar web ↗</a>
+          </div>
+        </form>
+      </section>
 
-  // Guardar cambios de una playlist individual
-  document.querySelectorAll('.save-playlist-btn').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      const id = e.target.getAttribute('data-id');
-      const card = e.target.closest('div').parentNode;
-      const title = card.querySelector('[name="title"]').value;
-      const category = card.querySelector('[name="category"]').value;
-      const image_url = card.querySelector('[name="image_url"]').value;
-      const link_url = card.querySelector('[name="link_url"]').value;
-      const sort_order = parseInt(card.querySelector('[name="sort_order"]').value) || 1;
-      const description = card.querySelector('[name="description"]').value;
-      const published = card.querySelector('[name="published"]').checked;
+      <section class="admin-panel">
+        <h2>Archivos multimedia</h2>
+        <p class="muted">Sube imágenes, portadas, audio o documentos para usarlos en tus playlists.</p>
+        <form id="uploadForm" class="admin-form">
+          <label>Seleccionar archivo<input id="assetFile" type="file" required accept="image/*,audio/*,video/*,.pdf,.txt,.doc,.docx,.zip"></label>
+          <label>Nombre descriptivo<input id="assetLabel" placeholder="Ej. Portada especial 80s"></label>
+          <button class="btn gold" type="submit">Subir archivo</button>
+        </form>
+        <div id="assetList" class="manage-list"></div>
+      </section>
 
-      const { error } = await sb.from('playlists').update({
-        title, category, image_url, link_url, sort_order, description, published
-      }).eq('id', id);
+      <section class="admin-panel">
+        <h2>Playlists y programas</h2>
+        <div id="managePlaylists" class="manage-list"></div>
+      </section>
 
-      if (error) {
-        message('Error al guardar: ' + error.message, true);
-      } else {
-        message('¡Cambios guardados correctamente!');
-        await refresh();
-      }
-    });
-  });
-
-  // Eliminar playlist
-  document.querySelectorAll('.delete-playlist-btn').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      if (!confirm('¿Seguro que quieres eliminar esta playlist?')) return;
-      const id = e.target.getAttribute('data-id');
-      const { error } = await sb.from('playlists').delete().eq('id', id);
-      if (error) {
-        message('Error al eliminar: ' + error.message, true);
-      } else {
-        message('Playlist eliminada.');
-        await refresh();
-      }
-    });
-  });
-}
-
-$('#loginForm')?.addEventListener('submit', async e => {
-  e.preventDefault();
-  clearMessage();
-  if (!sb) return;
-  const { error } = await sb.auth.signInWithPassword({
-    email: $('#email').value,
-    password: $('#password').value
-  });
-  if (error) {
-    message('No se ha podido iniciar sesión: ' + error.message, true);
-    return;
-  }
-  await requireAdmin();
-});
-
-$('#logoutBtn')?.addEventListener('click', async () => {
-  await sb.auth.signOut();
-  showLoggedOut();
-  message('Sesión cerrada.');
-});
-
-if (configured) requireAdmin();
-else {
+      <section class="admin-panel">
+        <h2>Vista previa</h2>
+        <p class="muted">Abre la web en otra pestaña para comprobar el aspecto público. Los borradores no aparecerán allí.</p>
+        <a class="btn gold" href="/" target="_blank">Abrir vista pública ↗</a>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="admin-limpio.js"></script>
+</body>
+</html>
