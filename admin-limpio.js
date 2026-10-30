@@ -93,7 +93,7 @@ async function refresh() {
   const [{ data: sd }, { data: pd }, { data: ad }] = await Promise.all([
     sb.from('site_settings').select('*'),
     sb.from('playlists').select('*').order('sort_order'),
-    sb.storage.from('media').list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+    sb.storage.from('media').list('', { limit: 500, sortBy: { column: 'created_at', order: 'desc' } })
   ]);
   settings = { ...defaults };
   for (const x of sd || []) settings[x.key] = x.draft_value ?? x.value;
@@ -122,7 +122,7 @@ function renderAssetsAdmin() {
   }
   container.innerHTML = `
     <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px;">
-      <p style="font-size:13px; color:#eab308; margin:0;">Archivos disponibles (copia la URL para usarla):</p>
+      <p style="font-size:13px; color:#eab308; margin:0;">Archivos disponibles en Supabase (${assets.length}):</p>
       ${assets.map(file => {
         const url = getAssetPublicUrl(file.name);
         return `<div style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:8px; border-radius:4px; border:1px solid #333; font-size:12px;">
@@ -137,7 +137,7 @@ function renderAssetsAdmin() {
     btn.addEventListener('click', e => {
       const url = e.target.getAttribute('data-url');
       navigator.clipboard.writeText(url);
-      message('¡URL copiada al portapapeles! Ya puedes pegarla en tu playlist.');
+      message('¡URL copiada al portapapeles!');
     });
   });
 }
@@ -162,7 +162,6 @@ function renderPlaylistsAdmin() {
     item.dataset.id = p.id;
     item.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(234,179,8,0.2); padding: 15px; border-radius: 8px;";
     
-    // Generar opciones de select con los archivos multimedia subidos
     const assetOptions = assets.map(file => {
       const url = getAssetPublicUrl(file.name);
       const selected = p.image_url === url ? 'selected' : '';
@@ -176,12 +175,17 @@ function renderPlaylistsAdmin() {
         <input type="number" class="p-sort" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
       <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
-        <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
           <input type="text" class="p-image" value="${esc(p.image_url || '')}" placeholder="URL de la imagen" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-          ${assets.length ? `<select class="p-image-select" style="padding:6px; background:#111; color:#eab308; border:1px solid #333; border-radius:4px; font-size:11px;">
-            <option value="">-- O selecciona archivo subido --</option>
-            ${assetOptions}
-          </select>` : ''}
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select class="p-image-select" style="flex:1; padding:6px; background:#111; color:#eab308; border:1px solid #333; border-radius:4px; font-size:11px;">
+              <option value="">-- Seleccionar archivo subido --</option>
+              ${assetOptions}
+            </select>
+            <label class="btn outline" style="padding:4px 8px; font-size:11px; cursor:pointer; margin:0; white-space:nowrap;">
+              Subir nueva <input type="file" class="p-quick-upload" accept="image/*" style="display:none;">
+            </label>
+          </div>
         </div>
         <input type="text" class="p-link" value="${esc(p.link_url || '')}" placeholder="Enlace de destino" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
         <input type="text" class="p-button" value="${esc(p.button_text || 'Escuchar / Ver')}" placeholder="Texto botón" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
@@ -198,12 +202,32 @@ function renderPlaylistsAdmin() {
       </div>
     `;
     
-    // Al seleccionar una opción del desplegable, se rellena automáticamente el input de la imagen
+    // Cambiar input de imagen al seleccionar del desplegable
     const selectEl = item.querySelector('.p-image-select');
     if (selectEl) {
       selectEl.addEventListener('change', e => {
         if (e.target.value) {
           item.querySelector('.p-image').value = e.target.value;
+        }
+      });
+    }
+
+    // Subida rápida de imagen directamente desde la tarjeta de la playlist
+    const quickUpload = item.querySelector('.p-quick-upload');
+    if (quickUpload) {
+      quickUpload.addEventListener('change', async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        message('Subiendo imagen...');
+        const fileName = Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const { error } = await sb.storage.from('media').upload(fileName, file);
+        if (error) {
+          message('Error al subir: ' + error.message, true);
+        } else {
+          const publicUrl = getAssetPublicUrl(fileName);
+          item.querySelector('.p-image').value = publicUrl;
+          message('¡Imagen subida y asignada con éxito! Pulsa "Guardar cambios".');
+          await refresh();
         }
       });
     }
