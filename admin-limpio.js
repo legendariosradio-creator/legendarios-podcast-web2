@@ -182,7 +182,14 @@ function renderPlaylistsAdmin() {
       const published = card.querySelector('[name="published"]').checked;
 
       const { error } = await sb.from('playlists').update({
-        title, category, image_url, link_url, button_text, sort_order, description, published
+        title, 
+        category, 
+        image_url, 
+        link_url, 
+        button_text, 
+        sort_order, 
+        description, 
+        published
       }).eq('id', id);
 
       if (error) {
