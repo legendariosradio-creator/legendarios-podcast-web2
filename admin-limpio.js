@@ -104,6 +104,42 @@ async function refresh() {
   if (settingsForm) setForm(settingsForm, settings);
   
   renderPlaylistsAdmin();
+  renderAssetsAdmin();
+}
+
+function getAssetPublicUrl(path) {
+  if (!path) return '';
+  const { data } = sb.storage.from('media').getPublicUrl(path);
+  return data?.publicUrl || path;
+}
+
+function renderAssetsAdmin() {
+  const container = $('#assetList');
+  if (!container) return;
+  if (!assets.length) {
+    container.innerHTML = '<p class="muted" style="font-size:13px; margin-top:10px;">No hay archivos multimedia subidos todavía.</p>';
+    return;
+  }
+  container.innerHTML = `
+    <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px;">
+      <p style="font-size:13px; color:#eab308; margin:0;">Archivos disponibles (copia la URL para usarla):</p>
+      ${assets.map(file => {
+        const url = getAssetPublicUrl(file.name);
+        return `<div style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:8px; border-radius:4px; border:1px solid #333; font-size:12px;">
+          <span style="color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%;">${esc(file.name)}</span>
+          <button type="button" class="btn outline copy-url-btn" data-url="${url}" style="padding:4px 8px; font-size:11px;">Copiar URL</button>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  container.querySelectorAll('.copy-url-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const url = e.target.getAttribute('data-url');
+      navigator.clipboard.writeText(url);
+      message('¡URL copiada al portapapeles! Ya puedes pegarla en tu playlist.');
+    });
+  });
 }
 
 function renderPlaylistsAdmin() {
@@ -125,6 +161,14 @@ function renderPlaylistsAdmin() {
     item.className = 'playlist-row-card';
     item.dataset.id = p.id;
     item.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(234,179,8,0.2); padding: 15px; border-radius: 8px;";
+    
+    // Generar opciones de select con los archivos multimedia subidos
+    const assetOptions = assets.map(file => {
+      const url = getAssetPublicUrl(file.name);
+      const selected = p.image_url === url ? 'selected' : '';
+      return `<option value="${url}" ${selected}>${esc(file.name)}</option>`;
+    }).join('');
+
     item.innerHTML = `
       <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
         <input type="text" class="p-title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
@@ -132,7 +176,13 @@ function renderPlaylistsAdmin() {
         <input type="number" class="p-sort" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
       <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
-        <input type="text" class="p-image" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <input type="text" class="p-image" value="${esc(p.image_url || '')}" placeholder="URL de la imagen" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+          ${assets.length ? `<select class="p-image-select" style="padding:6px; background:#111; color:#eab308; border:1px solid #333; border-radius:4px; font-size:11px;">
+            <option value="">-- O selecciona archivo subido --</option>
+            ${assetOptions}
+          </select>` : ''}
+        </div>
         <input type="text" class="p-link" value="${esc(p.link_url || '')}" placeholder="Enlace de destino" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
         <input type="text" class="p-button" value="${esc(p.button_text || 'Escuchar / Ver')}" placeholder="Texto botón" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
@@ -147,6 +197,17 @@ function renderPlaylistsAdmin() {
         </div>
       </div>
     `;
+    
+    // Al seleccionar una opción del desplegable, se rellena automáticamente el input de la imagen
+    const selectEl = item.querySelector('.p-image-select');
+    if (selectEl) {
+      selectEl.addEventListener('change', e => {
+        if (e.target.value) {
+          item.querySelector('.p-image').value = e.target.value;
+        }
+      });
+    }
+
     rowsContainer.appendChild(item);
   });
 
@@ -219,6 +280,23 @@ function renderPlaylistsAdmin() {
     });
   });
 }
+
+$('#uploadForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  clearMessage();
+  const fileInput = $('#assetFile');
+  const file = fileInput.files[0];
+  if (!file) return;
+  const fileName = Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const { error } = await sb.storage.from('media').upload(fileName, file);
+  if (error) {
+    message('Error al subir archivo: ' + error.message, true);
+  } else {
+    message('¡Archivo subido con éxito!');
+    fileInput.value = '';
+    await refresh();
+  }
+});
 
 $('#loginForm')?.addEventListener('submit', async e => {
   e.preventDefault();
