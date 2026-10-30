@@ -27,13 +27,15 @@ const defaults = {
 
 function message(t, err = false) {
   const el = $('#status');
+  if (!el) return;
   el.textContent = t;
   el.classList.remove('hidden', 'error');
   if (err) el.classList.add('error');
 }
 
 function clearMessage() {
-  $('#status').classList.add('hidden');
+  const el = $('#status');
+  if (el) el.classList.add('hidden');
 }
 
 function esc(s = '') {
@@ -50,19 +52,9 @@ function setForm(form, obj) {
   }
 }
 
-function readForm(form) {
-  const out = {};
-  for (const el of form.elements) {
-    if (el.name && el.type !== 'file' && el.type !== 'button' && el.type !== 'submit') {
-      out[el.name] = el.value;
-    }
-  }
-  return out;
-}
-
 async function requireAdmin() {
   if (!sb) {
-    $('#setupWarning').classList.remove('hidden');
+    $('#setupWarning')?.classList.remove('hidden');
     return false;
   }
   const { data: { session: s } } = await sb.auth.getSession();
@@ -84,15 +76,15 @@ async function requireAdmin() {
 }
 
 function showLoggedOut() {
-  $('#loginPanel').classList.remove('hidden');
-  $('#dashboard').classList.add('hidden');
-  $('#logoutBtn').classList.add('hidden');
+  $('#loginPanel')?.classList.remove('hidden');
+  $('#dashboard')?.classList.add('hidden');
+  $('#logoutBtn')?.classList.add('hidden');
 }
 
 function showLoggedIn() {
-  $('#loginPanel').classList.add('hidden');
-  $('#dashboard').classList.remove('hidden');
-  $('#logoutBtn').classList.remove('hidden');
+  $('#loginPanel')?.classList.add('hidden');
+  $('#dashboard')?.classList.remove('hidden');
+  $('#logoutBtn')?.classList.remove('hidden');
 }
 
 async function refresh() {
@@ -106,10 +98,118 @@ async function refresh() {
   for (const x of sd || []) settings[x.key] = x.draft_value ?? x.value;
   playlists = pd || [];
   assets = ad || [];
-  setForm($('#settingsForm'), settings);
+  
+  const settingsForm = $('#settingsForm');
+  if (settingsForm) setForm(settingsForm, settings);
+  
+  renderPlaylistsAdmin();
 }
 
-$('#loginForm').addEventListener('submit', async e => {
+// Renderizar la gestión de las playlists en el panel
+function renderPlaylistsAdmin() {
+  const container = $('#playlistsAdminContainer') || $('#playlistAdminList');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+      <h3>Gestión de Playlists (${playlists.length}/10 o más)</h3>
+      <button id="addPlaylistBtn" class="btn gold" type="button">+ Añadir Playlist</button>
+    </div>
+    <div id="playlistsListRows" style="display:flex; flex-direction:column; gap:15px;"></div>
+  `;
+
+  const rowsContainer = $('#playlistsListRows');
+  
+  playlists.forEach((p, index) => {
+    const item = document.createElement('div');
+    item.style = "background: rgba(255,255,255,0.05); border: 1px solid rgba(234,179,8,0.3); padding: 15px; border-radius: 8px;";
+    item.innerHTML = `
+      <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-bottom: 10px;">
+        <input type="text" data-id="${p.id}" name="title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" data-id="${p.id}" name="category" value="${esc(p.category || '')}" placeholder="Categoría" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+      </div>
+      <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
+        <input type="text" data-id="${p.id}" name="image_url" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" data-id="${p.id}" name="link_url" value="${esc(p.link_url || '')}" placeholder="Enlace (YouTube / iVoox)" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="number" data-id="${p.id}" name="sort_order" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+      </div>
+      <textarea data-id="${p.id}" name="description" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical;">${esc(p.description || '')}</textarea>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <label style="color:#fff; font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;">
+          <input type="checkbox" data-id="${p.id}" name="published" ${p.published !== false ? 'checked' : ''}> Publicada en la web
+        </label>
+        <div style="display:flex; gap:10px;">
+          <button class="save-playlist-btn" data-id="${p.id}" style="background:#eab308; color:#000; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">Guardar cambios</button>
+          <button class="delete-playlist-btn" data-id="${p.id}" style="background:#ef4444; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">Eliminar</button>
+        </div>
+      </div>
+    `;
+    rowsContainer.appendChild(item);
+  });
+
+  // Botón para añadir nueva playlist
+  $('#addPlaylistBtn')?.addEventListener('click', async () => {
+    const newOrder = playlists.length + 1;
+    const { error } = await sb.from('playlists').insert([{
+      title: 'Nueva Playlist',
+      category: 'Categoría',
+      image_url: 'assets/logo.png',
+      link_url: 'https://www.youtube.com',
+      description: 'Descripción breve de la playlist',
+      published: true,
+      sort_order: newOrder
+    }]);
+    if (error) {
+      message('Error al crear la playlist: ' + error.message, true);
+    } else {
+      message('Playlist creada correctamente.');
+      await refresh();
+    }
+  });
+
+  // Guardar cambios de una playlist individual
+  document.querySelectorAll('.save-playlist-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const id = e.target.getAttribute('data-id');
+      const card = e.target.closest('div').parentNode; // contenedor de la playlist
+      const title = card.querySelector('[name="title"]').value;
+      const category = card.querySelector('[name="category"]').value;
+      const image_url = card.querySelector('[name="image_url"]').value;
+      const link_url = card.querySelector('[name="link_url"]').value;
+      const sort_order = parseInt(card.querySelector('[name="sort_order"]').value) || 1;
+      const description = card.querySelector('[name="description"]').value;
+      const published = card.querySelector('[name="published"]').checked;
+
+      const { error } = await sb.from('playlists').update({
+        title, category, image_url, link_url, sort_order, description, published
+      }).eq('id', id);
+
+      if (error) {
+        message('Error al guardar: ' + error.message, true);
+      } else {
+        message('¡Playlist guardada con éxito!');
+        await refresh();
+      }
+    });
+  });
+
+  // Eliminar playlist
+  document.querySelectorAll('.delete-playlist-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      if (!confirm('¿Seguro que quieres eliminar esta playlist?')) return;
+      const id = e.target.getAttribute('data-id');
+      const { error } = await sb.from('playlists').delete().eq('id', id);
+      if (error) {
+        message('Error al eliminar: ' + error.message, true);
+      } else {
+        message('Playlist eliminada.');
+        await refresh();
+      }
+    });
+  });
+}
+
+$('#loginForm')?.addEventListener('submit', async e => {
   e.preventDefault();
   clearMessage();
   if (!sb) return;
@@ -124,7 +224,7 @@ $('#loginForm').addEventListener('submit', async e => {
   await requireAdmin();
 });
 
-$('#logoutBtn').addEventListener('click', async () => {
+$('#logoutBtn')?.addEventListener('click', async () => {
   await sb.auth.signOut();
   showLoggedOut();
   message('Sesión cerrada.');
@@ -133,5 +233,5 @@ $('#logoutBtn').addEventListener('click', async () => {
 if (configured) requireAdmin();
 else {
   showLoggedOut();
-  $('#setupWarning').classList.remove('hidden');
+  $('#setupWarning')?.classList.remove('hidden');
 }
