@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Legendarios Playlist | La Música No Muere</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav class="nav"><a class="brand" href="#inicio"><img id="navLogo" src="assets/logo.png" alt="Logo Legendarios"><span><b id="brandName">LEGENDARIOS</b><small id="brandSubtitle">Playlist · JoseLuis</small></span></a><div class="navlinks"><a href="#inicio">Inicio</a><a href="#plataformas">Escúchanos</a><a href="#playlists">Playlists</a><a href="#contacto">Pide tu tema</a></div><a class="btn gold small" id="youtubeTop" href="https://www.youtube.com/channel/UCezcXIjqHVrbHIe6BuEGFUA" target="_blank" rel="noopener">▶ YouTube</a></nav>
+<header class="hero" id="inicio"><div class="hero-logo"><img id="heroLogo" src="assets/logo.png" alt="Emblema Legendarios"></div><div class="hero-copy"><span class="pill" id="heroBadge">● Nueva Playlist Diaria Disponible</span><h1 id="heroTitle">LA MÚSICA<br><em>NO MUERE</em></h1><p id="heroText">Un espacio conducido por <strong>JoseLuis</strong> dedicado a rescatar las grandes joyas de la historia: Rock, Blues, Jazz y Swing.</p><div class="actions"><a class="btn gold" id="youtubeLink" href="https://www.youtube.com/channel/UCezcXIjqHVrbHIe6BuEGFUA" target="_blank" rel="noopener">▶ YouTube</a><a class="btn outline" id="ivooxLink" href="https://www.ivoox.com/podcast-legendarios-playlist_sq_f13242468_1.html" target="_blank" rel="noopener">♫ iVoox</a><a class="btn outline" id="facebookLink" href="https://www.facebook.com" target="_blank" rel="noopener">f Facebook</a></div></div></header>
+<section class="section platforms" id="plataformas"><div class="section-head center"><h2 id="platformTitle">DISPONIBLE EN <em>TODAS TUS PLATAFORMAS</em></h2><p id="platformText">Sigue los episodios diarios de Legendarios Playlist con JoseLuis</p></div><div class="platform-grid" id="platformCards"></div></section>
+<section class="section" id="playlists"><div class="section-head"><div><h2 id="playlistTitle">SELECCIÓN <em>MUSICAL</em></h2><p id="playlistText">Explora las listas y emisiones oficiales de Legendarios Playlist</p></div></div><div class="playlist-grid" id="playlistGrid"><p class="muted">Cargando playlists…</p></div></section>
+<section class="section contact" id="contacto"><div class="contact-card"><div class="section-head center"><h2 id="contactTitle">PIDE TU <em>TEMA Y DEDICATORIA</em></h2><p id="contactText">Envía tu petición o sugerencia musical a JoseLuis</p></div><form id="requestForm"><label>Tu nombre<input name="name" required placeholder="Tu nombre"></label><label>Canción / artista solicitado<input name="song" required placeholder="Artista - canción"></label><label>Mensaje o dedicatoria<textarea name="message" rows="3" placeholder="Tu dedicatoria"></textarea></label><button class="btn gold" type="submit">Enviar petición por correo</button><p class="muted tiny">Este formulario abre tu programa de correo; no almacena datos en la web.</p></form></div></section>
+<footer><img id="footerLogo" src="assets/logo.png" alt="Logo"><p>© <span id="year"></span> Legendarios Playlist · La Música No Muere</p><a href="/admin.html" class="admin-link">Administración</a></footer>
+<script type="module" src="app.js"></script>
+
+<!-- Reproductor de Música de Fondo -->
+<div id="bgMusicContainer" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(0, 0, 0, 0.85); border: 1px solid #eab308; padding: 10px 15px; border-radius: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 10px; font-family: sans-serif; color: #fff;">
+    <span style="font-size: 13px; font-weight: bold; color: #eab308; display: flex; align-items: center; gap: 5px;">
+        🎵 Música Legendaria
+    </span>
+    <audio id="bgAudio" loop preload="auto">
+        <source src="assets/musica.mp3" type="audio/mpeg">
+        Tu navegador no soporta audio.
+    </audio>
+    <button id="musicToggleBtn" style="background: #eab308; border: none; color: #000; padding: 6px 14px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s;">
+        Reproducir
+    </button>
+</div>
+
+<script>
+    const audio = document.getElementById('bgAudio');
+    const btn = document.getElementById('musicToggleBtn');
+
+    audio.volume = 0.5; // Volumen al 50% por defecto
+    
+    btn.addEventListener('click', () => {
+        if (audio.paused) {
+            audio.play().then(() => {
+                btn.textContent = 'Pausar ⏸';
+                btn.style.background = '#22c55e'; // Verde cuando suena
+                btn.style.color = '#fff';
+            }).catch(e => {
+                console.log("Error al reproducir:", e);
+            });
+        } else {
+            audio.pause();
+            btn.textContent = 'Reproducir ▶';
+            btn.style.background = '#eab308'; // Amarillo original
+            btn.style.color = '#000';
+        }
+    });
+</script>
+</body></html>
