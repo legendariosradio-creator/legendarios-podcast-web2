@@ -122,22 +122,24 @@ function renderPlaylistsAdmin() {
   
   playlists.forEach((p, index) => {
     const item = document.createElement('div');
+    item.className = 'playlist-row-card';
+    item.dataset.id = p.id;
     item.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(234,179,8,0.2); padding: 15px; border-radius: 8px;";
     item.innerHTML = `
       <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-        <input type="text" data-id="${p.id}" name="title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="category" value="${esc(p.category || '')}" placeholder="Categoría" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="number" data-id="${p.id}" name="sort_order" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" class="p-title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" class="p-category" value="${esc(p.category || '')}" placeholder="Categoría" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="number" class="p-sort" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
       <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
-        <input type="text" data-id="${p.id}" name="image_url" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="link_url" value="${esc(p.link_url || '')}" placeholder="Enlace de destino" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="button_text" value="${esc(p.button_text || 'Escuchar / Ver')}" placeholder="Texto botón" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" class="p-image" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" class="p-link" value="${esc(p.link_url || '')}" placeholder="Enlace de destino" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" class="p-button" value="${esc(p.button_text || 'Escuchar / Ver')}" placeholder="Texto botón" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
-      <textarea data-id="${p.id}" name="description" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical; height:60px;">${esc(p.description || '')}</textarea>
+      <textarea class="p-desc" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical; height:60px;">${esc(p.description || '')}</textarea>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <label style="color:#fff; font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;">
-          <input type="checkbox" data-id="${p.id}" name="published" ${p.published !== false ? 'checked' : ''}> Publicada en la web
+          <input type="checkbox" class="p-published" ${p.published !== false ? 'checked' : ''}> Publicada en la web
         </label>
         <div style="display:flex; gap:10px;">
           <button class="save-playlist-btn btn gold" data-id="${p.id}" style="padding:6px 12px; font-size:12px; cursor:pointer;" type="button">Guardar cambios</button>
@@ -171,15 +173,17 @@ function renderPlaylistsAdmin() {
   document.querySelectorAll('.save-playlist-btn').forEach(btn => {
     btn.addEventListener('click', async e => {
       const id = e.target.getAttribute('data-id');
-      const card = e.target.closest('div').parentNode;
-      const title = card.querySelector('[name="title"]').value;
-      const category = card.querySelector('[name="category"]').value;
-      const image_url = card.querySelector('[name="image_url"]').value;
-      const link_url = card.querySelector('[name="link_url"]').value;
-      const button_text = card.querySelector('[name="button_text"]').value;
-      const sort_order = parseInt(card.querySelector('[name="sort_order"]').value) || 1;
-      const description = card.querySelector('[name="description"]').value;
-      const published = card.querySelector('[name="published"]').checked;
+      const card = e.target.closest('.playlist-row-card');
+      if (!card) return;
+
+      const title = card.querySelector('.p-title').value;
+      const category = card.querySelector('.p-category').value;
+      const image_url = card.querySelector('.p-image').value;
+      const link_url = card.querySelector('.p-link').value;
+      const button_text = card.querySelector('.p-button').value;
+      const sort_order = parseInt(card.querySelector('.p-sort').value) || 1;
+      const description = card.querySelector('.p-desc').value;
+      const published = card.querySelector('.p-published').checked;
 
       const { error } = await sb.from('playlists').update({
         title, 
