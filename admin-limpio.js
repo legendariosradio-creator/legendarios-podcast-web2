@@ -1,5 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+
 const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('PEGA_AQUI') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('PEGA_AQUI');
 const sb = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const $ = s => document.querySelector(s);
@@ -105,15 +106,14 @@ async function refresh() {
   renderPlaylistsAdmin();
 }
 
-// Renderizar la gestión de las playlists en el panel
 function renderPlaylistsAdmin() {
-  const container = $('#playlistsAdminContainer') || $('#playlistAdminList');
+  const container = $('#managePlaylists') || $('#playlistsAdminContainer');
   if (!container) return;
 
   container.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <h3>Gestión de Playlists (${playlists.length}/10 o más)</h3>
-      <button id="addPlaylistBtn" class="btn gold" type="button">+ Añadir Playlist</button>
+      <h3 style="margin:0; color:#eab308;">Listado de Playlists (${playlists.length} de 10+)</h3>
+      <button id="addNewPlaylistBtn" class="btn gold" type="button" style="padding:6px 12px; font-size:13px;">+ Añadir Playlist</button>
     </div>
     <div id="playlistsListRows" style="display:flex; flex-direction:column; gap:15px;"></div>
   `;
@@ -122,39 +122,40 @@ function renderPlaylistsAdmin() {
   
   playlists.forEach((p, index) => {
     const item = document.createElement('div');
-    item.style = "background: rgba(255,255,255,0.05); border: 1px solid rgba(234,179,8,0.3); padding: 15px; border-radius: 8px;";
+    item.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(234,179,8,0.2); padding: 15px; border-radius: 8px;";
     item.innerHTML = `
-      <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-bottom: 10px;">
+      <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
         <input type="text" data-id="${p.id}" name="title" value="${esc(p.title || '')}" placeholder="Título" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
         <input type="text" data-id="${p.id}" name="category" value="${esc(p.category || '')}" placeholder="Categoría" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="number" data-id="${p.id}" name="sort_order" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
       <div style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; margin-bottom: 10px;">
         <input type="text" data-id="${p.id}" name="image_url" value="${esc(p.image_url || '')}" placeholder="URL de la imagen / portada" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="text" data-id="${p.id}" name="link_url" value="${esc(p.link_url || '')}" placeholder="Enlace (YouTube / iVoox)" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
-        <input type="number" data-id="${p.id}" name="sort_order" value="${p.sort_order || (index + 1)}" placeholder="Orden" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" data-id="${p.id}" name="link_url" value="${esc(p.link_url || '')}" placeholder="Enlace de destino" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
+        <input type="text" data-id="${p.id}" name="button_text" value="${esc(p.button_text || 'Escuchar / Ver')}" placeholder="Texto botón" style="padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px;">
       </div>
-      <textarea data-id="${p.id}" name="description" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical;">${esc(p.description || '')}</textarea>
+      <textarea data-id="${p.id}" name="description" placeholder="Descripción de la playlist" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:4px; margin-bottom:10px; resize:vertical; height:60px;">${esc(p.description || '')}</textarea>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <label style="color:#fff; font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;">
           <input type="checkbox" data-id="${p.id}" name="published" ${p.published !== false ? 'checked' : ''}> Publicada en la web
         </label>
         <div style="display:flex; gap:10px;">
-          <button class="save-playlist-btn" data-id="${p.id}" style="background:#eab308; color:#000; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">Guardar cambios</button>
-          <button class="delete-playlist-btn" data-id="${p.id}" style="background:#ef4444; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">Eliminar</button>
+          <button class="save-playlist-btn btn gold" data-id="${p.id}" style="padding:6px 12px; font-size:12px; cursor:pointer;" type="button">Guardar cambios</button>
+          <button class="delete-playlist-btn" data-id="${p.id}" style="background:#ef4444; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;" type="button">Eliminar</button>
         </div>
       </div>
     `;
     rowsContainer.appendChild(item);
   });
 
-  // Botón para añadir nueva playlist
-  $('#addPlaylistBtn')?.addEventListener('click', async () => {
+  $('#addNewPlaylistBtn')?.addEventListener('click', async () => {
     const newOrder = playlists.length + 1;
     const { error } = await sb.from('playlists').insert([{
       title: 'Nueva Playlist',
       category: 'Categoría',
       image_url: 'assets/logo.png',
       link_url: 'https://www.youtube.com',
+      button_text: 'Escuchar / Ver',
       description: 'Descripción breve de la playlist',
       published: true,
       sort_order: newOrder
@@ -162,38 +163,37 @@ function renderPlaylistsAdmin() {
     if (error) {
       message('Error al crear la playlist: ' + error.message, true);
     } else {
-      message('Playlist creada correctamente.');
+      message('¡Playlist creada con éxito!');
       await refresh();
     }
   });
 
-  // Guardar cambios de una playlist individual
   document.querySelectorAll('.save-playlist-btn').forEach(btn => {
     btn.addEventListener('click', async e => {
       const id = e.target.getAttribute('data-id');
-      const card = e.target.closest('div').parentNode; // contenedor de la playlist
+      const card = e.target.closest('div').parentNode;
       const title = card.querySelector('[name="title"]').value;
       const category = card.querySelector('[name="category"]').value;
       const image_url = card.querySelector('[name="image_url"]').value;
       const link_url = card.querySelector('[name="link_url"]').value;
+      const button_text = card.querySelector('[name="button_text"]').value;
       const sort_order = parseInt(card.querySelector('[name="sort_order"]').value) || 1;
       const description = card.querySelector('[name="description"]').value;
       const published = card.querySelector('[name="published"]').checked;
 
       const { error } = await sb.from('playlists').update({
-        title, category, image_url, link_url, sort_order, description, published
+        title, category, image_url, link_url, button_text, sort_order, description, published
       }).eq('id', id);
 
       if (error) {
         message('Error al guardar: ' + error.message, true);
       } else {
-        message('¡Playlist guardada con éxito!');
+        message('¡Playlist guardada correctamente!');
         await refresh();
       }
     });
   });
 
-  // Eliminar playlist
   document.querySelectorAll('.delete-playlist-btn').forEach(btn => {
     btn.addEventListener('click', async e => {
       if (!confirm('¿Seguro que quieres eliminar esta playlist?')) return;
